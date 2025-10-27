@@ -10,6 +10,7 @@ from browser_use import Agent, BrowserSession
 import customtkinter
 import speech_recognition as sr
 import threading
+from google.oauth2 import service_account
 import google.genai as genai
 from browser_use.llm import ChatGoogle
 import subprocess
@@ -40,7 +41,6 @@ def get_browser_session():
             user_data_dir='~/.config/browseruse/profiles/default',
             keep_alive=True,
             highlight_elements=False
-            
         )
     return _main_browser
 
@@ -112,6 +112,8 @@ And finally, you are developed by a class 12th high school student from Internat
     return _SYSTEM_INSTRUCTION
 
 PRE_IMPORTED_MODULES = {"os", "asyncio", "pyttsx3", "subprocess", "pyautogui", "keyboard", "re"}
+
+# Removed global TTS engine to avoid threading conflicts
 
 # Thread lock for TTS to prevent concurrent access
 _tts_lock = threading.Lock()
@@ -220,6 +222,8 @@ def strip_unnecessary_imports(code_str):
     return "\n".join(filtered_lines)
 
 
+from collections import deque
+
 CONVERSATION_HISTORY = deque(maxlen=10)  # Remember last 10 conversations
 
 def run_ai_command(command, output_box=None):
@@ -261,11 +265,6 @@ def run_ai_command(command, output_box=None):
     code_to_run = generated_text.strip('`')
     if code_to_run.lstrip().startswith("python"):
         code_to_run = code_to_run.lstrip()[len("python"):].lstrip()
-    
-    # Remove "code:" prefix if present
-    if code_to_run.lstrip().lower().startswith("code:"):
-        code_to_run = code_to_run.lstrip()[5:].lstrip()
-    
     code_to_run = strip_unnecessary_imports(code_to_run)
 
     if not is_safe_code(code_to_run):
@@ -436,7 +435,12 @@ class OmegaDesktopAssistant(customtkinter.CTk):
         self.insert_message(f"You: {command}")
         self.user_input.delete(0, "end")
         
-
+        # Check for exit commands before processing
+        def exit_app():
+            self.insert_message("Omega: Goodbye!")
+            self.after(1500, self.destroy)  # Close after 1.5 second
+            return
+        
         
         # Show processing indicator
         self.send_button.configure(text="Processing...", state="disabled")
@@ -501,9 +505,11 @@ class OmegaDesktopAssistant(customtkinter.CTk):
         if msgbox.askokcancel("Exit O.M.E.G.A.", "Are you sure you want to exit O.M.E.G.A.?"):
             try:
                 # Clean up browser session if needed
-                global _main_browser
+                global _main_browser, _tts_engine
                 if _main_browser is not None:
                     _main_browser.close()
+                if _tts_engine is not None:
+                    _tts_engine.stop()
             except:
                 pass
             self.destroy()
