@@ -54,8 +54,6 @@ def get_genai_client():
     return _genai_client
 
 DESKTOP_PATH = os.path.join(os.path.expanduser('~'), 'Desktop')
-TEMP_FILE_NAME = 'temp_text_for_Omega.txt'
-TEMP_FILE_ON_DESKTOP_PATH = os.path.join(DESKTOP_PATH, TEMP_FILE_NAME)
 
 # Cache system instruction to avoid repeated formatting
 _SYSTEM_INSTRUCTION = None
@@ -68,7 +66,7 @@ You are O.M.E.G.A., a smart, voice-powered desktop assistant running locally.
 The following modules are ALREADY IMPORTED and available in the global scope:
 {', '.join(['os', 'asyncio', 'pyttsx3', 'subprocess', 'pyautogui', 'keyboard', 're'])}.
 Do NOT include import statements for these pre-imported modules.
-You also have access to a variable `DESKTOP_PATH` which points to the user's Desktop directory (e.g., '{DESKTOP_PATH}') and `TEMP_FILE_NAME` (e.g., '{TEMP_FILE_NAME}').
+You also have access to a variable `DESKTOP_PATH` which points to the user's Desktop directory (e.g., '{DESKTOP_PATH}').
 For other standard Python libraries (e.g., 'time', 'datetime', 'json'), you CAN import them.
 
 Do not even tell what programming language you are using, just give code that can be executed locally.
@@ -82,7 +80,7 @@ And always add exception because if user asked to open the app which doesn't exi
 
 If the user asks to open an office applications like PowerPoint, Word, or Excel, and asked you to do some task, use python-docx, python-pptx, or openpyxl modules to create the files. You must create the file in the user's Desktop directory using the `DESKTOP_PATH` variable
 After creating the file, you must open the file using the `os.startfile()` function with the file path.
-If the user asks to open Notepad, create a temporary text file on the Desktop with the name '{TEMP_FILE_NAME}' and open it using `os.startfile()`.
+If the user asks to open Notepad, create a text file on the Desktop with a meaningful filename based on the context or content (e.g., 'shopping_list.txt', 'notes_2024.txt', 'todo.txt') and open it using `os.startfile()`. Be creative with filenames!
 
 If you need to tell something to the user, use the `speak` function.
 The `speak` function is already defined and uses the pyttsx3 library to convert text to speech.
@@ -99,7 +97,7 @@ If you cannot solve it using Python code for local desktop control (like specifi
 where [detailed task description] is a clear, specific description of what the browser agent should accomplish. Example: If user asks to download something, don't just tell the browser use, "download the thing which user is asking for.". Instead be more clear what the user the asking by looking at the previous conversation.
 
 NEVER mix Python code with browser agent instructions in the same response.
-Never delete files (except temporary files you create like the one on the Desktop: '{TEMP_FILE_NAME}'),
+Never delete files (except temporary files you create),
 shut down the system, or do anything dangerous.
 Keep code minimal, efficient, and specific to the task.
 Always try to execute code directly unless it's totally not executable locally.
@@ -176,8 +174,6 @@ def is_safe_code(code_str):
         "eval(", "exec(",  # Code injection
         "ctypes.windll",   # Direct Windows API access
         "socket.",         # Network operations
-        "import ctypes",   # System-level access
-        "import socket",   # Network imports
     ]
     
     # Check critical patterns first
@@ -281,7 +277,7 @@ def run_ai_command(command, output_box=None):
         # Capture what the user sees
         captured_output = []
         
-        exec_globals = {k: v for k, v in globals().items() if k in PRE_IMPORTED_MODULES or k in ['speak', 'print', 'DESKTOP_PATH', 'TEMP_FILE_NAME', 'TEMP_FILE_ON_DESKTOP_PATH']}
+        exec_globals = {k: v for k, v in globals().items() if k in PRE_IMPORTED_MODULES or k in ['speak', 'print', 'DESKTOP_PATH']}
         exec_globals['output_box'] = output_box
         
         # Enhanced speak function that captures what was spoken
@@ -450,13 +446,14 @@ class OmegaDesktopAssistant(customtkinter.CTk):
         def process_command():
             try:
                 status, ai_result_msg = run_ai_command(command, output_box=self.chat_display)
-                
                 # Update UI on main thread
                 self.after(0, lambda: self.handle_ai_response(status, ai_result_msg, command))
             except Exception as e:
-                self.after(0, lambda: self.handle_ai_response("ERROR", str(e), command))
-        
+                error_msg = str(e)  # Capture the error message immediately
+                self.after(0, lambda: self.handle_ai_response("ERROR", error_msg, command))
+
         threading.Thread(target=process_command, daemon=True).start()
+
     
     def handle_ai_response(self, status, ai_result_msg, command):
         # Re-enable buttons
